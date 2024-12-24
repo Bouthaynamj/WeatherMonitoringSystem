@@ -1,33 +1,60 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet } from 'react-native';
+import { View, TextInput, TouchableOpacity, Text, Animated } from 'react-native';
 
 export default function LocationSelector({ onLocationSelect }) {
   const [location, setLocation] = useState('');
+  const [animation] = useState(new Animated.Value(0));
 
-  const handleSelect = () => {
+  const handleSubmit = () => {
     if (location.trim()) {
+      Animated.spring(animation, {
+        toValue: 1,
+        useNativeDriver: true,
+      }).start();
       onLocationSelect(location);
-    } else {
-      alert('Please enter a valid location.');
     }
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.label}>Enter a location:</Text>
+    <Animated.View style={[styles.container, { transform: [{ scale: animation }] }]}>
       <TextInput
         style={styles.input}
-        placeholder="e.g., London"
+        placeholder="Search city..."
+        placeholderTextColor="#8b9cb5"
         value={location}
         onChangeText={setLocation}
       />
-      <Button title="Get Weather" onPress={handleSelect} />
-    </View>
+      <TouchableOpacity style={styles.button} onPress={handleSubmit}>
+        <Text style={styles.buttonText}>Search</Text>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { marginBottom: 20, padding: 20 },
-  label: { fontSize: 16, marginBottom: 10 },
-  input: { borderWidth: 1, borderColor: '#ccc', padding: 10, marginBottom: 15, borderRadius: 5 },
-});
+const styles = {
+  container: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 15,
+    padding: 15,
+    margin: 10,
+  },
+  input: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 10,
+    padding: 12,
+    color: '#fff',
+    fontSize: 16,
+    marginBottom: 10,
+  },
+  button: {
+    backgroundColor: '#4a90e2',
+    borderRadius: 10,
+    padding: 12,
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+};

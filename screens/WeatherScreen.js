@@ -1,41 +1,128 @@
-
-import React, { useState } from 'react';
-import { View, StyleSheet } from 'react-native';
-import LocationSelector from '../components/LocationSelector';
+import React, { useState, useEffect } from 'react';
+import { View, TextInput, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Location from 'expo-location';
+import WeatherAnimations from '../components/WeatherAnimations';
 import WeatherCard from '../components/WeatherCard';
-import { fetchWeatherData } from '../services/weatherService';
+import { fetchWeatherData, fetchForecastData } from '../services/weatherService';
+import { getWeatherGradient } from '../utils/weatherStyles';
 
 export default function WeatherScreen() {
   const [weatherData, setWeatherData] = useState(null);
-  
-    
-  const handleLocationSelect = async (location) => {
+  const [forecastData, setForecastData] = useState(null);
+  const [location, setLocation] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getCurrentLocation();
+  }, []);
+
+  const getCurrentLocation = async () => {
     try {
-      const data = await fetchWeatherData(location);
-      if (data && data.cod === 200) {
-        setWeatherData(data);
-      } else {
-        alert('Location not found. Please try again.');
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Allow location access to get local weather');
+        setLoading(false);
+        return;
       }
+
+      let location = await Location.getCurrentPositionAsync({});
+      fetchWeatherByCoords(location.coords.latitude, location.coords.longitude);
     } catch (error) {
-      alert('An error occurred while fetching weather data.');
-      console.error(error);
+      console.error('Error getting location:', error);
+      setLoading(false);
+      Alert.alert('Error', 'Could not get current location');
     }
   };
 
-  return (
-    <View style={styles.container}>
-      {/* Location Selector for user input */}
-      <LocationSelector onLocationSelect={handleLocationSelect} />
+  const fetchWeatherByCoords = async (latitude, longitude) => {
+    try {
+      const [weather, forecast] = await Promise.all([
+        fetchWeatherData(`lat=${latitude}&lon=${longitude}`),
+        fetchForecastData(`lat=${latitude}&lon=${longitude}`)
+      ]);
+      
+      setWeatherData(weather);
+      setForecastData(forecast);
+    } catch (error) {
+      Alert.alert('Error', 'Could not fetch weather data');
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      {/* Weather data displayed dynamically */}
-      {weatherData && <WeatherCard weather={weatherData} />}
-    </View>
+  const handleSearch = async () => {
+    if (location.trim()) {
+      setLoading(true);
+      try {
+        const [weather, forecast] = await Promise.all([
+          fetchWeatherData(`q=${location}`),
+          fetchForecastData(`q=${location}`)
+        ]);
+        
+        setWeatherData(weather);
+        setForecastData(forecast);
+      } catch (error) {
+        Alert.alert(
+          'Error',
+          'Could not find weather data for this location. Please try again.'
+        );
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const weatherType = weatherData?.weather[0]?.main?.toLowerCase();
+
+  return (
+    <LinearGradient 
+      colors={getWeatherGradient(weatherType)} 
+      style={styles.container}
+    >
+      <View style={styles.searchBar}>
+        <TextInput
+          style={styles.input}
+          placeholder="Search location..."
+          value={location}
+          onChangeText={setLocation}
+          onSubmitEditing={handleSearch}
+          placeholderTextColor="#fff"
+        />
+      </View>
+
+      {loading ? (
+        <ActivityIndicator size="large" color="#fff" style={styles.loader} />
+      ) : (
+        <WeatherCard weather={weatherData} forecast={forecastData} />
+      )}
+      
+      <WeatherAnimations weatherType={weatherType} />
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20 },
-  title: { fontSize: 24, fontWeight: 'bold' },
-  subtitle: { fontSize: 18, marginTop: 10 },
+  container: {
+    flex: 1,
+    paddingTop: 50,
+  },
+  searchBar: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  input: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    padding: 15,
+    borderRadius: 30,
+    fontSize: 16,
+    color: '#fff',
+  },
+  loader: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });
